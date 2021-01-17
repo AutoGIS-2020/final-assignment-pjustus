@@ -4,7 +4,7 @@
 
 Once you are finished with the final assignment, edit this readme and add "x" to the correct box:
 
-* [] Submitted
+* [x] Submitted
 
 * [] I'm still working on my final assignment. 
 
@@ -27,17 +27,19 @@ Fill in details of your final project below. You can remove this instructions-se
 AccessViz
 
 ### Structure of this repository:
-
+- ReadMe file
+- AccessViz.py module
+- final-assignment-pjustus.ipynb 
 ### Input data:
-
+- TimeTravelMatrix files
 ### Analysis steps:
-
+- Finding filepaths, merging tables, visualizing and comparing
 ### Results:
+- AccessVizScript is a Python tool for managing, analyzing and visualizing the Travel Time Matrix data set. AccessViz consist of Python functions, and examples on how to use these functions. AccessViz has four main components for accessing the files, joining the attribute information to spatial data, visualizing the data and comparing different travel modes
 
 ### References:
+- https://github.com/AutoGIS-2020/final-assignment-pjustus/blob/master/AccessViz.py
+- https://github.com/AutoGIS-2020/final-assignment-pjustus/blob/master/AccessVizScript.py
+- https://github.com/AutoGIS-2020/final-assignment-pjustus/blob/master/final-assignment-pjustus.ipynb
 
-*edit according to your submission:*
-- Literature related to the topic
-- Links to websites, tutorials books or articles that you found useful
-- If you got help from your course mates (or collaborated with someone) please mention it in here.
 
