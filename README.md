@@ -4,9 +4,9 @@
 
 Once you are finished with the final assignment, edit this readme and add "x" to the correct box:
 
-* [ ] Submitted
+* [] Submitted
 
-* [x] I'm still working on my final assignment. 
+* [] I'm still working on my final assignment. 
 
 
 ### Instructions
@@ -23,7 +23,8 @@ Read the final assignment instructions from the course webpages [https://autogis
 
 Fill in details of your final project below. You can remove this instructions-section from the README-file if you want.
 
-## Topic: 
+## Topic:
+AccessViz
 
 ### Structure of this repository:
 
