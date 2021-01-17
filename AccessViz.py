@@ -14,7 +14,7 @@ import branca
 
 def main():
 """
-    A tool for managing, analyzing and visualizing the Travel Time Matrix data set.
+    Tool for managing, analyzing and visualizing the Travel Time Matrix data set.
 
 Usage:
     ./AccessViz.py
