@@ -23,7 +23,8 @@ Read the final assignment instructions from the course webpages [https://autogis
 
 Fill in details of your final project below. You can remove this instructions-section from the README-file if you want.
 
-## Topic: AccessViz
+## Topic:
+AccessViz
 
 ### Structure of this repository:
 
