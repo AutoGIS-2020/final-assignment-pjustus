@@ -1,537 +1,606 @@
-{
- "cells": [
-  {
-   "cell_type": "code",
-   "execution_count": null,
-   "metadata": {},
-   "outputs": [],
-   "source": [
-    "# AccessViz\n",
-    "\n",
-    "import glob\n",
-    "import os\n",
-    "from pathlib import Path\n",
-    "import pandas as pd\n",
-    "import geopandas as gpd\n",
-    "import zipfile\n",
-    "from pyproj import CRS\n",
-    "import matplotlib.pyplot as plt\n",
-    "import contextily as ctx\n",
-    "import folium\n",
-    "import branca\n",
-    "\n",
-    "def FileFinder(YKR_IDs: list, input_folder_name: str, output_folder: str, to_file=False):\n",
-    "    \"\"\"\n",
-    "    Returns a list of travel time matrix filepaths based on a list of YKR ID values\n",
-    "    from a specified input data folder. \n",
-    "\n",
-    "            Parameters:\n",
-    "                    YKR_IDs (list): A list of YKR_ID numbers\n",
-    "                    input_folder_name (str): Name of the input folder\n",
-    "                    output_folder (str): Name of the output folder\n",
-    "                    to_file (boolean): If True, also returns a text file\n",
-    "\n",
-    "            Returns:\n",
-    "                    file_paths (list): A list of filepaths\n",
-    "    \"\"\"\n",
-    "    # Using assert to make sure input is ok\n",
-    "    assert type(YKR_IDs) == list, \"The input of the YKR_ID:s needs to be a list!\"\n",
-    "    # Finding the folder from the user's instance\n",
-    "    input_folder = Path(input_folder_name).absolute()\n",
-    "    # Using assert to make sure input folder exists\n",
-    "    assert os.path.isdir(input_folder) == True, \"Check the input folder's name!\"\n",
-    "    # Defining counter\n",
-    "    counter = 0\n",
-    "    # Creating an empty list for the filepaths\n",
-    "    file_paths = []\n",
-    "    # Creating a variable for the f-string\n",
-    "    glob_end = \"*.txt\"\n",
-    "    # Creating a variable for glob\n",
-    "    glob_start = f\"{input_folder_name}/**/travel_times_to_ \"\n",
-    "    # Creating a list to check for false YKR ID's\n",
-    "    false_names = YKR_IDs.copy()\n",
-    "    # For-looping the user's folders (and subfolders) with glob\n",
-    "    for name in glob.glob(glob_start+glob_end, recursive=True):\n",
-    "        # Finding the YKR ID part of the filepath\n",
-    "        end_txt = name[-11:]\n",
-    "        end = end_txt[:-4]\n",
-    "        # Finding filename of the filepath\n",
-    "        fname = name[-28:]\n",
-    "        # Checking if the YKR ID of the filepath exists in input list\n",
-    "        if end in YKR_IDs:\n",
-    "            # Increasing counter\n",
-    "            counter += 1\n",
-    "            # Informing user of current progress\n",
-    "            print(f\"Processing file {fname}. Progress: {counter}/{len(glob.glob(glob_start+glob_end, recursive=True))}\")\n",
-    "            # Appending filepath to list\n",
-    "            file_paths.append(name)\n",
-    "            # Removing real YKR ID's from the false YKR ID list\n",
-    "            false_names.remove(end)\n",
-    "        else:\n",
-    "            continue\n",
-    "    # Informing user of false YKR ID's\n",
-    "    for false_ID in false_names:\n",
-    "        print(f\"YKR ID number {false_ID} does not exist in folder: {input_folder_name}\\nMake sure the YKR ID values in the input list are typed correctly.\")\n",
-    "    # Checking for the optional parameter (default is False)\n",
-    "    if to_file == True:\n",
-    "        # Writing the list of filepaths to a text file\n",
-    "        fullname = os.path.join(output_folder, \"YKR_ID_fps.txt\")         \n",
-    "        YKR_txt = open(fullname, \"w\")\n",
-    "        YKR_txt.write(str(file_paths))\n",
-    "        YKR_txt.close()\n",
-    "        # Informing the user of the name of the new text file\n",
-    "        print(f\"Filepath of the text file: {fullname}\")\n",
-    "    # Returning the list of filepaths\n",
-    "    return file_paths\n",
-    "\n",
-    "def TableJoiner(YKR_IDs: list, output_folder: str, FF_result):\n",
-    "    \"\"\"\n",
-    "    Returns spatial layers as geopackage files based on a list of YKR_ID numbers \n",
-    "    to a specified output folder. \n",
-    "\n",
-    "            Parameters:\n",
-    "                    YKR_IDs (list): A list of YKR ID numbers\n",
-    "                    output_folder (str): Name of the output folder\n",
-    "                    FF_result (list): A list of filepaths of the YKR ID numbers \n",
-    "\n",
-    "            Returns:\n",
-    "                    gpkg_files (list): A list of filepaths of the geopackage files\n",
-    "    \"\"\"\n",
-    "    # Using assert to make sure output_folder is ok\n",
-    "    assert type(output_folder) == str, \"The output_folder must be a string!\"\n",
-    "    assert os.path.isdir(output_folder) == True, \"Check the output_folder's name!\"\n",
-    "    # Reading the grid file\n",
-    "    grid = gpd.read_file(GridFpFinder())\n",
-    "    # Getting the filepaths\n",
-    "    filepaths = FF_result\n",
-    "    # Creating an empty list for the file names\n",
-    "    gpkg_files = []\n",
-    "    # For-looping filepaths\n",
-    "    for fp in filepaths:\n",
-    "        # Getting the ID part of the filepath\n",
-    "        id_txt = fp[-11:]\n",
-    "        YKR_ID = id_txt[:-4]\n",
-    "        # Checking if files already exist\n",
-    "        fname = os.path.join(output_folder, f\"{YKR_ID}.gpkg\")\n",
-    "        my_file = Path(fname)\n",
-    "        if my_file.is_file():\n",
-    "            # Appending filepaths to the list\n",
-    "            gpkg_files.append(fname)\n",
-    "            continue\n",
-    "        else:\n",
-    "            # Reading the filepath\n",
-    "            data = pd.read_csv(fp, sep=\";\")\n",
-    "            # Merging the filepath with grid \n",
-    "            merge = grid.merge(data, how=\"right\", left_on=\"YKR_ID\", right_on=\"from_id\")\n",
-    "            # Creating a output path for the data with unique name\n",
-    "            output_fp = os.path.join(output_folder, f\"{YKR_ID}.gpkg\")\n",
-    "            # Saving the spatial layer \n",
-    "            merge.to_file(output_fp, driver=\"GPKG\")\n",
-    "            # Adding the filepaths to a list\n",
-    "            gpkg_files.append(output_fp)\n",
-    "    return gpkg_files\n",
-    "\n",
-    "def GridFpFinder():\n",
-    "    \"\"\"\n",
-    "    Returns the YKR grid filepath from the current directory.\n",
-    "    \"\"\"\n",
-    "    # Defining flag\n",
-    "    flag = False\n",
-    "    # Getting current directory\n",
-    "    p = Path().absolute()\n",
-    "    # For-looping current directory\n",
-    "    for root, dirs, files in os.walk(p):\n",
-    "        for file in files:\n",
-    "            # Looking for the grid file\n",
-    "            if file.endswith('.shp'):\n",
-    "                if file == \"MetropAccess_YKR_grid_EurefFIN.shp\":\n",
-    "                    # Creating a filepath of the grid file\n",
-    "                    fullpath = os.path.join(root, file)\n",
-    "                    grid_fp = os.path.abspath(fullpath)\n",
-    "                    # Changing flag value\n",
-    "                    flag = True\n",
-    "    # Checking flag value\n",
-    "    if flag == False:\n",
-    "        # Raising an error\n",
-    "        raise OSError(f\"Grid file: MetropAccess_YKR_grid_EurefFIN.shp does not exist in current working directory!\\n{p}\")\n",
-    "    # Returning the grid's filepath\n",
-    "    return grid_fp\n",
-    "\n",
-    "def unzip(zip_file: str, target_folder: str):\n",
-    "    \"\"\"\n",
-    "    Extracts selected file to a selected directory. \n",
-    "\n",
-    "            Parameters:\n",
-    "                    zip_file (str): Name of the zip file\n",
-    "                    target_dir (str): Name of the target directory\n",
-    "\n",
-    "            Returns:\n",
-    "                    None\n",
-    "    \"\"\"\n",
-    "    assert os.path.isfile(zip_file) == True, \"Check the name of the zip file!\"\n",
-    "    # Reading zipfile\n",
-    "    with zipfile.ZipFile(zip_file, \"r\") as zip_ref:\n",
-    "        # Extracting zipfile to target folder\n",
-    "        zip_ref.extractall(target_folder)\n",
-    "        # Informing user of the progress\n",
-    "        print(f\"File: {zip_file} extracted to: {target_folder}.\")\n",
-    "    \n",
-    "def Visualizer(YKR_IDs: list, output_folder: str, travel_mode: str, map_type: str, TJ_result):\n",
-    "    \"\"\"\n",
-    "    Returns .png or .html files of maps based on a list of YKR ID values. \n",
-    "\n",
-    "            Parameters:\n",
-    "                    YKR_IDs (list): A list of YKR_ID numbers\n",
-    "                    output_folder (str): Name of the output folder\n",
-    "                    travel_mode (str): Mode of travel. Accepted modes are:\n",
-    "                                        - \"car\"\n",
-    "                                        - \"pt\"\n",
-    "                                        - \"bike\"\n",
-    "                                        - \"walk\"\n",
-    "                    map_type (str): Type of map. Accepted types are:\n",
-    "                                        - \"static\"\n",
-    "                                        - \"interactive\"\n",
-    "                    TJ_result (list): A list of filepaths of the geopackage files\n",
-    "\n",
-    "            Returns:\n",
-    "                    None\n",
-    "    \"\"\"\n",
-    "    # Getting the filepaths \n",
-    "    gpkg_fps = TJ_result\n",
-    "    # For-looping the files\n",
-    "    for fp in gpkg_fps:\n",
-    "        # Getting the YKR ID number\n",
-    "        name = fp[:-5]\n",
-    "        YKR_ID = name[-7:]\n",
-    "        # Reading the data\n",
-    "        data = gpd.read_file(fp)\n",
-    "        # Changing CRS\n",
-    "        data = data.to_crs(epsg=3857)\n",
-    "        # Checking map_type\n",
-    "        if map_type == \"static\":\n",
-    "            static_mapper(travel_mode, data, YKR_ID, output_folder)\n",
-    "        elif map_type == \"interactive\":\n",
-    "            interactive_mapper(travel_mode, data, YKR_ID, output_folder)\n",
-    "        else:\n",
-    "            raise SyntaxError(\"Check the spelling of map_type parameter!\")\n",
-    "                \n",
-    "def static_mapper(tm, data, YKR_ID, output_folder):\n",
-    "    \"\"\"\n",
-    "    Creates static maps for Visualizer. \n",
-    "\n",
-    "            Parameters:\n",
-    "                    tm (str): Mode of travel\n",
-    "                    data (str): Geometry data\n",
-    "                    YKR_ID (str): YKR ID number\n",
-    "                    output_folder (str): Name of the output folder\n",
-    "\n",
-    "            Returns:\n",
-    "                    None\n",
-    "    \"\"\"\n",
-    "    # Checking travel mode\n",
-    "    if tm == \"car\":\n",
-    "        variable = \"car_r_t\"\n",
-    "        # Creating unique credits\n",
-    "        credits = f\"Travel time data to YKR ID {YKR_ID} by car in rush hour by Digital Geography Lab 2018, Map Data © OpenStreetMap contributors\"\n",
-    "    elif tm == \"pt\":\n",
-    "        variable = \"pt_r_t\"\n",
-    "        # Creating unique credits\n",
-    "        credits = f\"Travel time data to YKR ID {YKR_ID} by pt in rush hour by Digital Geography Lab 2018, Map Data © OpenStreetMap contributors\"\n",
-    "    elif tm == \"bike\":\n",
-    "        variable = \"bike_s_t\"\n",
-    "        # Creating unique credits\n",
-    "        credits = f\"Travel time data to YKR ID {YKR_ID} by slow cycling by Digital Geography Lab 2018, Map Data © OpenStreetMap contributors\"\n",
-    "    elif tm == \"walk\":\n",
-    "        variable = \"walk_t\"\n",
-    "        # Creating unique credits\n",
-    "        credits = f\"Travel time data to YKR ID {YKR_ID} on foot by Digital Geography Lab 2018, Map Data © OpenStreetMap contributors\"\n",
-    "    else:\n",
-    "        raise SyntaxError(\"Check the spelling of travel_mode parameter!\")\n",
-    "    # Saving the destination square \n",
-    "    dest = data.loc[data[\"from_id\"] == data[\"to_id\"]]\n",
-    "    # Dealing with no data values\n",
-    "    data = data.loc[data[variable] > -1]\n",
-    "    # Plotting the data\n",
-    "    fig, ax = plt.subplots(figsize=(12, 8))\n",
-    "    if tm == \"walk\":\n",
-    "        # Changing the unit of time to hours\n",
-    "        data[\"walk_h_t\"] = data[\"walk_t\"] / 60 \n",
-    "        # Plotting the data\n",
-    "        data.plot(ax=ax,\n",
-    "              column=\"walk_h_t\",\n",
-    "              cmap=\"RdYlBu\",\n",
-    "              linewidth=0,\n",
-    "              scheme=\"quantiles\",\n",
-    "              k=9,\n",
-    "              alpha=0.6,\n",
-    "              legend=True)\n",
-    "        # Legend in hours\n",
-    "        ax.get_legend().set_title(\"Travel time (hour)\")\n",
-    "    else:\n",
-    "        # Plotting the data\n",
-    "        data.plot(ax=ax,\n",
-    "                  column=variable,\n",
-    "                  cmap=\"RdYlBu\",\n",
-    "                  linewidth=0,\n",
-    "                  scheme=\"quantiles\",\n",
-    "                  k=9,\n",
-    "                  alpha=0.6,\n",
-    "                  legend=True)\n",
-    "        # Legend in minutes\n",
-    "        ax.get_legend().set_title(\"Travel time (min)\")\n",
-    "    # Plotting the destination square\n",
-    "    dest.plot(ax=ax,\n",
-    "              color=\"black\",\n",
-    "              linewidth=0,\n",
-    "              alpha=0.8)\n",
-    "    # Adjusting legend\n",
-    "    ax.get_legend().set_bbox_to_anchor((1.24, 1))\n",
-    "\n",
-    "    # Adding basemap\n",
-    "    ctx.add_basemap(ax, \n",
-    "                    source=ctx.providers.OpenStreetMap.Mapnik,\n",
-    "                    attribution=credits)\n",
-    "    # Removing axis\n",
-    "    plt.axis(\"off\")\n",
-    "    # Creating a output path for the map with unique name\n",
-    "    outfp = os.path.join(output_folder, f\"{variable}_to_{YKR_ID}_static_map.png\")\n",
-    "    # Saving figure\n",
-    "    plt.savefig(outfp, dpi=300)\n",
-    "\n",
-    "def interactive_mapper(tm, data, YKR_ID, output_folder):\n",
-    "    \"\"\"\n",
-    "    Creates interactive maps for Visualizer. \n",
-    "\n",
-    "            Parameters:\n",
-    "                    tm (str): Mode of travel\n",
-    "                    data (str): Geometry data\n",
-    "                    YKR_ID (str): YKR ID number\n",
-    "                    output_folder (str): Name of the output folder\n",
-    "\n",
-    "            Returns:\n",
-    "                    None\n",
-    "    \"\"\"\n",
-    "    # Checking travel mode\n",
-    "    if tm == \"car\":\n",
-    "        variable = \"car_r_t\"\n",
-    "        credits = f\"Travel time data to YKR ID {YKR_ID} by car in rush hour by Digital Geography Lab 2018, Map Data © OpenStreetMap contributors\"\n",
-    "    elif tm == \"pt\":\n",
-    "        variable = \"pt_r_t\"\n",
-    "        credits = f\"Travel time data to YKR ID {YKR_ID} by pt in rush hour by Digital Geography Lab 2018, Map Data © OpenStreetMap contributors\"\n",
-    "    elif tm == \"bike\":\n",
-    "        variable = \"bike_s_t\"\n",
-    "        credits = f\"Travel time data to YKR ID {YKR_ID} by slow cycling by Digital Geography Lab 2018, Map Data © OpenStreetMap contributors\"\n",
-    "    elif tm == \"walk\":\n",
-    "        variable = \"walk_t\"\n",
-    "        credits = f\"Travel time data to YKR ID {YKR_ID} on foot by Digital Geography Lab 2018, Map Data © OpenStreetMap contributors\"\n",
-    "    else:\n",
-    "        raise SyntaxError(\"Check the spelling of travel_mode parameter!\")\n",
-    "    # Saving the destination square \n",
-    "    #data[variable].loc[data[\"from_id\"] == data[\"to_id\"]] = 0\n",
-    "    dest = data.loc[data[\"from_id\"] == data[\"to_id\"]]\n",
-    "    # Dealing with no data values\n",
-    "    data = data.loc[data[variable] > -1]\n",
-    "    # Subsetting data\n",
-    "    data = data[[\"from_id\", variable, \"geometry\"]]\n",
-    "    # Creating the map instance\n",
-    "    m = folium.Map(location=[60.25, 24.8], zoom_start=10, control_scale=True)\n",
-    "    if tm == \"walk\":\n",
-    "        # Changing the unit of time to hours\n",
-    "        data[\"walk_h_t\"] = data[variable] / 60\n",
-    "        # Setting colorscale\n",
-    "        colorscale = branca.colormap.linear.RdYlBu_05.to_step(data = data[\"walk_h_t\"], n = 9, method = 'quantiles')\n",
-    "        # Setting caption\n",
-    "        colorscale.caption = f\"Travel time (hour)\"\n",
-    "        # Defining style so the destination YKR ID square is black\n",
-    "        my_style = lambda x: {'fillColor':'black' if\n",
-    "                    x['properties']['from_id']== int(YKR_ID) else\n",
-    "                    colorscale(x['properties'][\"walk_h_t\"]), 'weight':0, \n",
-    "                             \"fillOpacity\": 0.9,}\n",
-    "        # Defining tooltip\n",
-    "        my_tooltip = folium.features.GeoJsonTooltip(fields=['from_id', \"walk_h_t\"],\n",
-    "                                                    aliases = ['YKR ID:', \"Travel time (hour):\"],\n",
-    "                                                    labels=True,\n",
-    "                                                    sticky=False)\n",
-    "        # Creating the choropleth map\n",
-    "        folium.features.GeoJson(data,  \n",
-    "                                name='Labels',\n",
-    "                                style_function=my_style,\n",
-    "                                tooltip=my_tooltip                                             \n",
-    "        ).add_to(m)\n",
-    "        \n",
-    "        # Adding a popup for the destination square\n",
-    "        dest_gjson = folium.GeoJson(dest, name='Destination square')\n",
-    "        popup = folium.Popup('Destination square')\n",
-    "        popup.add_to(dest_gjson)\n",
-    "        dest_gjson.add_to(m)\n",
-    "        \n",
-    "    else:\n",
-    "        # Setting colorscale\n",
-    "        colorscale = branca.colormap.linear.RdYlBu_05.to_step(data = data[variable], n = 9, method = 'quantiles')\n",
-    "        # Setting caption\n",
-    "        colorscale.caption = f\"Travel time (min)\"\n",
-    "        # Defining style so the destination YKR ID square is black\n",
-    "        my_style = lambda x: {'fillColor':'black' if\n",
-    "                    x['properties']['from_id']== int(YKR_ID) else\n",
-    "                    colorscale(x['properties'][variable]), 'weight':0, \n",
-    "                             \"fillOpacity\": 0.9,}\n",
-    "        # Defining tooltip\n",
-    "        my_tooltip = folium.features.GeoJsonTooltip(fields=['from_id', variable],\n",
-    "                                                    aliases = ['YKR ID:', \"Travel time (min):\"],\n",
-    "                                                    labels=True,\n",
-    "                                                    sticky=False)\n",
-    "        # Creating the choropleth map\n",
-    "        folium.features.GeoJson(data,  \n",
-    "                                name='Grid',\n",
-    "                                style_function=my_style,\n",
-    "                                tooltip=my_tooltip                                             \n",
-    "        ).add_to(m)\n",
-    "        # Adding a popup for the destination square\n",
-    "        dest_gjson = folium.GeoJson(dest, name='Destination square')\n",
-    "        popup = folium.Popup('Destination square')\n",
-    "        popup.add_to(dest_gjson)\n",
-    "        dest_gjson.add_to(m)\n",
-    "    # Adding the colormap\n",
-    "    m.add_child(colorscale)\n",
-    "    # Adding layer control\n",
-    "    folium.LayerControl().add_to(m)\n",
-    "    title_html = '''\n",
-    "             <h3 align=\"center\" style=\"font-size:16px\"><b>{}</b></h3>\n",
-    "             '''.format(credits) \n",
-    "    m.get_root().html.add_child(folium.Element(title_html))\n",
-    "    # Creating a output path for the map with unique name\n",
-    "    outfp = os.path.join(output_folder, f\"{variable}_to_{YKR_ID}_map.html\")\n",
-    "    # Saving the map\n",
-    "    m.save(outfp)\n",
-    "\n",
-    "def ComparisonTool(tm_comp: list, TJ_result, output_folder):\n",
-    "    \"\"\"\n",
-    "    Compares two travel modes by subtracting the first travel mode by the latter one.\n",
-    "\n",
-    "            Parameters:\n",
-    "                    tm_comp (list): A list of travel modes to be compared\n",
-    "                    TJ_result (str): A list of filepaths of geopackage files\n",
-    "                    output_folder (str): Name of the output folder\n",
-    "\n",
-    "            Returns:\n",
-    "                    None\n",
-    "    \"\"\"\n",
-    "    # Using assert to make sure input is ok\n",
-    "    assert type(tm_comp) == list, \"The travel modes for comparison has to be passed as a list!\"\n",
-    "    assert len(tm_comp) == 2, \"Make sure there are only two travel modes to be compared!\"\n",
-    "    for tm in tm_comp:\n",
-    "        assert tm in [\"car\", \"pt\", \"bike\", \"walk\"], \"Allowed travel modes are: car, pt, bike, walk.\"\n",
-    "    # Separating the travel modes\n",
-    "    tm1 = tm_comp[0]\n",
-    "    tm2 = tm_comp[1]\n",
-    "    # Finding the right column names for tm1\n",
-    "    if tm1 == \"car\" or tm1 == \"pt\":\n",
-    "        tm1_t = f\"{tm1}_r_t\"\n",
-    "        tm1_d = f\"{tm1}_r_d\"\n",
-    "    elif tm1 == \"bike\":\n",
-    "        tm1_t = f\"{tm1}_s_t\"\n",
-    "        tm1_d = f\"{tm1}_d\"\n",
-    "    else:\n",
-    "        tm1_t = f\"{tm1}_t\"\n",
-    "        tm1_d = f\"{tm1}_d\"\n",
-    "    # Finding the right column names for tm2\n",
-    "    if tm2 == \"car\" or tm2 == \"pt\":\n",
-    "        tm2_t = f\"{tm2}_r_t\"\n",
-    "        tm2_d = f\"{tm2}_r_d\"\n",
-    "    elif tm2 == \"bike\":\n",
-    "        tm2_t = f\"{tm2}_s_t\"\n",
-    "        tm2_d = f\"{tm2}_d\"\n",
-    "    else:\n",
-    "        tm2_t = f\"{tm2}_t\"\n",
-    "        tm2_d = f\"{tm2}_d\" \n",
-    "    # Creating column names\n",
-    "    ct_t = f\"{tm1[0]}_vs_{tm2[0]}_t\"\n",
-    "    ct_d = f\"{tm1[0]}_vs_{tm2[0]}_d\"\n",
-    "    # Getting the files from TableJoiner\n",
-    "    gpkg_fps = TJ_result\n",
-    "    # For-looping the files\n",
-    "    for fp in gpkg_fps:\n",
-    "        # Getting the YKR ID number\n",
-    "        name = fp[:-5]\n",
-    "        YKR_ID = name[-7:]\n",
-    "        # Reading the data\n",
-    "        data = gpd.read_file(fp)\n",
-    "        # Dealing with no data values\n",
-    "        data = data.loc[data[tm1_t] > -1]\n",
-    "        data = data.loc[data[tm1_d] > -1]\n",
-    "        data = data.loc[data[tm2_t] > -1]\n",
-    "        data = data.loc[data[tm2_d] > -1]\n",
-    "        # Calculating the differences\n",
-    "        data[ct_t] = data.apply(lambda x: x[tm1_t] - x[tm2_t], axis=1)\n",
-    "        data[ct_d] = data.apply(lambda x: x[tm1_d] - x[tm2_d], axis=1)\n",
-    "        # Creating a output path for the data with unique name\n",
-    "        fname = f\"Accessibility_{YKR_ID}_{tm1}_vs_{tm2}.gpkg\"\n",
-    "        output_fp = os.path.join(output_folder, fname)\n",
-    "        # Saving the geopackage file to output folder\n",
-    "        data.to_file(output_fp, driver=\"GPKG\")\n",
-    "\n",
-    "def YKR_map():\n",
-    "    \"\"\"\n",
-    "    Displays a map of YKR ID grid.\n",
-    "    \n",
-    "    \"\"\"\n",
-    "    # Reading the grid file\n",
-    "    grid = gpd.read_file(GridFpFinder())\n",
-    "    # Creating the map instance\n",
-    "    m = folium.Map(location=[60.25, 24.8], zoom_start=10, control_scale=True)\n",
-    "    # Creating the choropleth map\n",
-    "    folium.features.GeoJson(grid,  \n",
-    "                            name='Grid',\n",
-    "                            style_function=lambda x: {'edgecolor':'black', 'fillColor': 'transparent', 'weight': 0.2},\n",
-    "                            tooltip=folium.features.GeoJsonTooltip(fields=['YKR_ID'],\n",
-    "                                                                    aliases = ['YKR ID:'],\n",
-    "                                                                    labels=True,\n",
-    "                                                                    sticky=False\n",
-    "                                                                                )\n",
-    "                           ).add_to(m)\n",
-    "    # Adding layer control\n",
-    "    folium.LayerControl().add_to(m)\n",
-    "    display(m)\n",
-    "\n",
-    "def yn_loop(question: str, choices: list):\n",
-    "    \"\"\"\n",
-    "    Asks for input until given a correct one and returns it.\n",
-    "\n",
-    "            Parameters:\n",
-    "                    question (str): A defined question\n",
-    "                    choices (list): List of choices to choose from\n",
-    "\n",
-    "            Returns:\n",
-    "                    choice (str): The user's choice\n",
-    "    \"\"\"\n",
-    "    yes_no = \"Accepted answers are yes & no. To exit press enter.\"\n",
-    "    choice = input(question)\n",
-    "    while choice not in choices:\n",
-    "        print(yes_no)\n",
-    "        choice = input(question)\n",
-    "    return choice\n"
-   ]
-  }
- ],
- "metadata": {
-  "kernelspec": {
-   "display_name": "Python 3",
-   "language": "python",
-   "name": "python3"
-  },
-  "language_info": {
-   "codemirror_mode": {
-    "name": "ipython",
-    "version": 3
-   },
-   "file_extension": ".py",
-   "mimetype": "text/x-python",
-   "name": "python",
-   "nbconvert_exporter": "python",
-   "pygments_lexer": "ipython3",
-   "version": "3.8.6"
-  }
- },
- "nbformat": 4,
- "nbformat_minor": 4
-}
+# AccessViz
+
+import glob
+import os
+from pathlib import Path
+import pandas as pd
+import geopandas as gpd
+import zipfile
+from pyproj import CRS
+import matplotlib.pyplot as plt
+import contextily as ctx
+import folium
+import branca
+
+def main():
+"""
+    A tool for managing, analyzing and visualizing the Travel Time Matrix data set.
+
+Usage:
+    ./AccessViz.py
+
+License:
+    MIT License
+
+    Copyright (c) 2021 Justus Poutanen
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+"""
+
+    # Defining a list of choices
+    yn_list = ["yes", "no", ""]
+    # Defining ending screen
+    exit = "You have exited AccessViz. Please restart AccessViz to try again."
+    # Defining starting screen
+    print("Welcome to AccessViz. Press enter at any time to exit.")
+    # Asking if user wants to see YKR ID grid map
+    map_check = av.yn_loop("Do you want to see a map with the YKR ID grid? yes/no: ", yn_list)
+    if map_check == "yes":
+        YKR_map()
+    elif map_check == "":
+        return print(exit)
+    # Asking for user's list of YKR ID's
+    YKR_IDs_input = input("Insert a list of YKR ID's (e.g. [1234567, 5787544, 9876543]): ")
+    # Converting the input to a list
+    list1 = YKR_IDs_input[1:]
+    list2 = [str(x) for x in list1.split()]
+    YKR_IDs = []
+    for i in list2:
+        i = i[:-1]
+        YKR_IDs.append(i)
+    # Asking if user wants to extract files
+    zip_check = av.yn_loop("Do you need to extract the TimeTravelMatrix (TTM) files n\ or the MetropAccess_YKR_grid? yes/no: ", yn_list)
+    if zip_check == "yes":
+        zip_name = input("Insert the name of the zip file: ")
+        zip_target = input("Insert the name of the target folder: ")
+        av.unzip(zip_name, zip_target)
+        return print("Please restart AccessViz.")
+    elif zip_check == "":
+        return print(exit)
+    # Asking for user's input folder
+    input_folder_name = input("Insert the name of the folder where the TTM files are: ")
+    # Asking for user's output folder
+    output_folder_name = input("Insert the name of the output folder: ")
+    # Asking if user wants the TTM filepaths to a text file
+    FFF_check = av.yn_loop("TTM filepaths to a text file? yes/no: ", yn_list)
+    if FFF_check == "yes":
+        FF_result = av.FileFinder(YKR_IDs, input_folder_name, output_folder_name, to_file=True)
+    elif FFF_check == "no":
+        FF_result = av.FileFinder(YKR_IDs, input_folder_name, output_folder_name)
+    elif FFF_check == "":
+        return print(exit)
+    # Creating and getting filepaths of geopackage files
+    TJ_result = av.TableJoiner(YKR_IDs, output_folder_name, FF_result)
+    # Asking if user wants to visualize results
+    visu_check = av.yn_loop("Do you want to visualize the results? yes/no: ", yn_list)
+    if visu_check == "yes":
+        visualizer_tm = input("Insert the mode of travel for Visualizer, car/pt/bike/walk: ")
+        visualizer_mp = input("Insert the type of map for Visualizer, static/interactive: ")
+        av.Visualizer(YKR_IDs, output_folder_name, visualizer_tm, visualizer_mp, TJ_result)
+        print(f"The map(s) can be found in: {output_folder_name}")
+    elif visu_check == "no":
+        print(f"Geopackage files can be found in: {output_folder_name}")
+    elif visu_check == "":
+        return print(exit)
+    # Asking if user wants to compare travel modes
+    ctool_check = av.yn_loop("Do you want to compare two travel modes? yes/no: ", yn_list)     
+    if ctool_check == "yes":
+        tm_input = input("Insert a list of travel modes to be compared (e.g. [car, pt]): ")
+        # Converting the input to a list
+        tm_list1 = tm_input[1:]
+        tm_list2 = [str(x) for x in tm_list1.split()]
+        tms = []
+        for i in tm_list2:
+            i = i[:-1]
+            tms.append(i)
+        av.ComparisonTool(tms, TJ_result, output_folder_name)
+        return print(exit)
+    else:
+        return print(exit)
+
+def FileFinder(YKR_IDs: list, input_folder_name: str, output_folder: str, to_file=False):
+    """
+    Returns a list of travel time matrix filepaths based on a list of YKR ID values
+    from a specified input data folder. 
+
+            Parameters:
+                    YKR_IDs (list): A list of YKR_ID numbers
+                    input_folder_name (str): Name of the input folder
+                    output_folder (str): Name of the output folder
+                    to_file (boolean): If True, also returns a text file
+
+            Returns:
+                    file_paths (list): A list of filepaths
+    """
+    # Using assert to make sure input is ok
+    assert type(YKR_IDs) == list, "The input of the YKR_ID:s needs to be a list!"
+    # Finding the folder from the user's instance
+    input_folder = Path(input_folder_name).absolute()
+    # Using assert to make sure input folder exists
+    assert os.path.isdir(input_folder) == True, "Check the input folder's name!"
+    # Defining counter
+    counter = 0
+    # Creating an empty list for the filepaths
+    file_paths = []
+    # Creating a variable for the f-string
+    glob_end = "*.txt"
+    # Creating a variable for glob
+    glob_start = f"{input_folder_name}/**/travel_times_to_ "
+    # Creating a list to check for false YKR ID's
+    false_names = YKR_IDs.copy()
+    # For-looping the user's folders (and subfolders) with glob
+    for name in glob.glob(glob_start+glob_end, recursive=True):
+        # Finding the YKR ID part of the filepath
+        end_txt = name[-11:]
+        end = end_txt[:-4]
+        # Finding filename of the filepath
+        fname = name[-28:]
+        # Checking if the YKR ID of the filepath exists in input list
+        if end in YKR_IDs:
+            # Increasing counter
+            counter += 1
+            # Informing user of current progress
+            print(f"Processing file {fname}. Progress: {counter}/{len(glob.glob(glob_start+glob_end, recursive=True))}")
+            # Appending filepath to list
+            file_paths.append(name)
+            # Removing real YKR ID's from the false YKR ID list
+            false_names.remove(end)
+        else:
+            continue
+    # Informing user of false YKR ID's
+    for false_ID in false_names:
+        print(f"YKR ID number {false_ID} does not exist in folder: {input_folder_name}\nMake sure the YKR ID values in the input list are typed correctly.")
+    # Checking for the optional parameter (default is False)
+    if to_file == True:
+        # Writing the list of filepaths to a text file
+        fullname = os.path.join(output_folder, "YKR_ID_fps.txt")         
+        YKR_txt = open(fullname, "w")
+        YKR_txt.write(str(file_paths))
+        YKR_txt.close()
+        # Informing the user of the name of the new text file
+        print(f"Filepath of the text file: {fullname}")
+    # Returning the list of filepaths
+    return file_paths
+
+def TableJoiner(YKR_IDs: list, output_folder: str, FF_result):
+    """
+    Returns spatial layers as geopackage files based on a list of YKR_ID numbers 
+    to a specified output folder. 
+
+            Parameters:
+                    YKR_IDs (list): A list of YKR ID numbers
+                    output_folder (str): Name of the output folder
+                    FF_result (list): A list of filepaths of the YKR ID numbers 
+
+            Returns:
+                    gpkg_files (list): A list of filepaths of the geopackage files
+    """
+    # Using assert to make sure output_folder is ok
+    assert type(output_folder) == str, "The output_folder must be a string!"
+    assert os.path.isdir(output_folder) == True, "Check the output_folder's name!"
+    # Reading the grid file
+    grid = gpd.read_file(GridFpFinder())
+    # Getting the filepaths
+    filepaths = FF_result
+    # Creating an empty list for the file names
+    gpkg_files = []
+    # For-looping filepaths
+    for fp in filepaths:
+        # Getting the ID part of the filepath
+        id_txt = fp[-11:]
+        YKR_ID = id_txt[:-4]
+        # Checking if files already exist
+        fname = os.path.join(output_folder, f"{YKR_ID}.gpkg")
+        my_file = Path(fname)
+        if my_file.is_file():
+            # Appending filepaths to the list
+            gpkg_files.append(fname)
+            continue
+        else:
+            # Reading the filepath
+            data = pd.read_csv(fp, sep=";")
+            # Merging the filepath with grid 
+            merge = grid.merge(data, how="right", left_on="YKR_ID", right_on="from_id")
+            # Creating a output path for the data with unique name
+            output_fp = os.path.join(output_folder, f"{YKR_ID}.gpkg")
+            # Saving the spatial layer 
+            merge.to_file(output_fp, driver="GPKG")
+            # Adding the filepaths to a list
+            gpkg_files.append(output_fp)
+    return gpkg_files
+
+def GridFpFinder():
+    """
+    Returns the YKR grid filepath from the current directory.
+    """
+    # Defining flag
+    flag = False
+    # Getting current directory
+    p = Path().absolute()
+    # For-looping current directory
+    for root, dirs, files in os.walk(p):
+        for file in files:
+            # Looking for the grid file
+            if file.endswith('.shp'):
+                if file == "MetropAccess_YKR_grid_EurefFIN.shp":
+                    # Creating a filepath of the grid file
+                    fullpath = os.path.join(root, file)
+                    grid_fp = os.path.abspath(fullpath)
+                    # Changing flag value
+                    flag = True
+    # Checking flag value
+    if flag == False:
+        # Raising an error
+        raise OSError(f"Grid file: MetropAccess_YKR_grid_EurefFIN.shp does not exist in current working directory!\n{p}")
+    # Returning the grid's filepath
+    return grid_fp
+
+def unzip(zip_file: str, target_folder: str):
+    """
+    Extracts selected file to a selected directory. 
+
+            Parameters:
+                    zip_file (str): Name of the zip file
+                    target_dir (str): Name of the target directory
+
+            Returns:
+                    None
+    """
+    assert os.path.isfile(zip_file) == True, "Check the name of the zip file!"
+    # Reading zipfile
+    with zipfile.ZipFile(zip_file, "r") as zip_ref:
+        # Extracting zipfile to target folder
+        zip_ref.extractall(target_folder)
+        # Informing user of the progress
+        print(f"File: {zip_file} extracted to: {target_folder}.")
+    
+def Visualizer(YKR_IDs: list, output_folder: str, travel_mode: str, map_type: str, TJ_result):
+    """
+    Returns .png or .html files of maps based on a list of YKR ID values. 
+
+            Parameters:
+                    YKR_IDs (list): A list of YKR_ID numbers
+                    output_folder (str): Name of the output folder
+                    travel_mode (str): Mode of travel. Accepted modes are:
+                                        - "car"
+                                        - "pt"
+                                        - "bike"
+                                        - "walk"
+                    map_type (str): Type of map. Accepted types are:
+                                        - "static"
+                                        - "interactive"
+                    TJ_result (list): A list of filepaths of the geopackage files
+
+            Returns:
+                    None
+    """
+    # Getting the filepaths 
+    gpkg_fps = TJ_result
+    # For-looping the files
+    for fp in gpkg_fps:
+        # Getting the YKR ID number
+        name = fp[:-5]
+        YKR_ID = name[-7:]
+        # Reading the data
+        data = gpd.read_file(fp)
+        # Changing CRS
+        data = data.to_crs(epsg=3857)
+        # Checking map_type
+        if map_type == "static":
+            static_mapper(travel_mode, data, YKR_ID, output_folder)
+        elif map_type == "interactive":
+            interactive_mapper(travel_mode, data, YKR_ID, output_folder)
+        else:
+            raise SyntaxError("Check the spelling of map_type parameter!")
+                
+def static_mapper(tm, data, YKR_ID, output_folder):
+    """
+    Creates static maps for Visualizer. 
+
+            Parameters:
+                    tm (str): Mode of travel
+                    data (str): Geometry data
+                    YKR_ID (str): YKR ID number
+                    output_folder (str): Name of the output folder
+
+            Returns:
+                    None
+    """
+    # Checking travel mode
+    if tm == "car":
+        variable = "car_r_t"
+        # Creating unique credits
+        credits = f"Travel time data to YKR ID {YKR_ID} by car in rush hour by Digital Geography Lab 2018, Map Data © OpenStreetMap contributors"
+    elif tm == "pt":
+        variable = "pt_r_t"
+        # Creating unique credits
+        credits = f"Travel time data to YKR ID {YKR_ID} by pt in rush hour by Digital Geography Lab 2018, Map Data © OpenStreetMap contributors"
+    elif tm == "bike":
+        variable = "bike_s_t"
+        # Creating unique credits
+        credits = f"Travel time data to YKR ID {YKR_ID} by slow cycling by Digital Geography Lab 2018, Map Data © OpenStreetMap contributors"
+    elif tm == "walk":
+        variable = "walk_t"
+        # Creating unique credits
+        credits = f"Travel time data to YKR ID {YKR_ID} on foot by Digital Geography Lab 2018, Map Data © OpenStreetMap contributors"
+    else:
+        raise SyntaxError("Check the spelling of travel_mode parameter!")
+    # Saving the destination square 
+    dest = data.loc[data["from_id"] == data["to_id"]]
+    # Dealing with no data values
+    data = data.loc[data[variable] > -1]
+    # Plotting the data
+    fig, ax = plt.subplots(figsize=(12, 8))
+    if tm == "walk":
+        # Changing the unit of time to hours
+        data["walk_h_t"] = data["walk_t"] / 60 
+        # Plotting the data
+        data.plot(ax=ax,
+              column="walk_h_t",
+              cmap="RdYlBu",
+              linewidth=0,
+              scheme="quantiles",
+              k=9,
+              alpha=0.6,
+              legend=True)
+        # Legend in hours
+        ax.get_legend().set_title("Travel time (hour)")
+    else:
+        # Plotting the data
+        data.plot(ax=ax,
+                  column=variable,
+                  cmap="RdYlBu",
+                  linewidth=0,
+                  scheme="quantiles",
+                  k=9,
+                  alpha=0.6,
+                  legend=True)
+        # Legend in minutes
+        ax.get_legend().set_title("Travel time (min)")
+    # Plotting the destination square
+    dest.plot(ax=ax,
+              color="black",
+              linewidth=0,
+              alpha=0.8)
+    # Adjusting legend
+    ax.get_legend().set_bbox_to_anchor((1.24, 1))
+
+    # Adding basemap
+    ctx.add_basemap(ax, 
+                    source=ctx.providers.OpenStreetMap.Mapnik,
+                    attribution=credits)
+    # Removing axis
+    plt.axis("off")
+    # Creating a output path for the map with unique name
+    outfp = os.path.join(output_folder, f"{variable}_to_{YKR_ID}_static_map.png")
+    # Saving figure
+    plt.savefig(outfp, dpi=300)
+
+def interactive_mapper(tm, data, YKR_ID, output_folder):
+    """
+    Creates interactive maps for Visualizer. 
+
+            Parameters:
+                    tm (str): Mode of travel
+                    data (str): Geometry data
+                    YKR_ID (str): YKR ID number
+                    output_folder (str): Name of the output folder
+
+            Returns:
+                    None
+    """
+    # Checking travel mode
+    if tm == "car":
+        variable = "car_r_t"
+        credits = f"Travel time data to YKR ID {YKR_ID} by car in rush hour by Digital Geography Lab 2018, Map Data © OpenStreetMap contributors"
+    elif tm == "pt":
+        variable = "pt_r_t"
+        credits = f"Travel time data to YKR ID {YKR_ID} by pt in rush hour by Digital Geography Lab 2018, Map Data © OpenStreetMap contributors"
+    elif tm == "bike":
+        variable = "bike_s_t"
+        credits = f"Travel time data to YKR ID {YKR_ID} by slow cycling by Digital Geography Lab 2018, Map Data © OpenStreetMap contributors"
+    elif tm == "walk":
+        variable = "walk_t"
+        credits = f"Travel time data to YKR ID {YKR_ID} on foot by Digital Geography Lab 2018, Map Data © OpenStreetMap contributors"
+    else:
+        raise SyntaxError("Check the spelling of travel_mode parameter!")
+    # Saving the destination square 
+    #data[variable].loc[data["from_id"] == data["to_id"]] = 0
+    dest = data.loc[data["from_id"] == data["to_id"]]
+    # Dealing with no data values
+    data = data.loc[data[variable] > -1]
+    # Subsetting data
+    data = data[["from_id", variable, "geometry"]]
+    # Creating the map instance
+    m = folium.Map(location=[60.25, 24.8], zoom_start=10, control_scale=True)
+    if tm == "walk":
+        # Changing the unit of time to hours
+        data["walk_h_t"] = data[variable] / 60
+        # Setting colorscale
+        colorscale = branca.colormap.linear.RdYlBu_05.to_step(data = data["walk_h_t"], n = 9, method = 'quantiles')
+        # Setting caption
+        colorscale.caption = f"Travel time (hour)"
+        # Defining style so the destination YKR ID square is black
+        my_style = lambda x: {'fillColor':'black' if
+                    x['properties']['from_id']== int(YKR_ID) else
+                    colorscale(x['properties']["walk_h_t"]), 'weight':0, 
+                             "fillOpacity": 0.9,}
+        # Defining tooltip
+        my_tooltip = folium.features.GeoJsonTooltip(fields=['from_id', "walk_h_t"],
+                                                    aliases = ['YKR ID:', "Travel time (hour):"],
+                                                    labels=True,
+                                                    sticky=False)
+        # Creating the choropleth map
+        folium.features.GeoJson(data,  
+                                name='Labels',
+                                style_function=my_style,
+                                tooltip=my_tooltip                                             
+        ).add_to(m)
+        
+        # Adding a popup for the destination square
+        dest_gjson = folium.GeoJson(dest, name='Destination square')
+        popup = folium.Popup('Destination square')
+        popup.add_to(dest_gjson)
+        dest_gjson.add_to(m)
+        
+    else:
+        # Setting colorscale
+        colorscale = branca.colormap.linear.RdYlBu_05.to_step(data = data[variable], n = 9, method = 'quantiles')
+        # Setting caption
+        colorscale.caption = f"Travel time (min)"
+        # Defining style so the destination YKR ID square is black
+        my_style = lambda x: {'fillColor':'black' if
+                    x['properties']['from_id']== int(YKR_ID) else
+                    colorscale(x['properties'][variable]), 'weight':0, 
+                             "fillOpacity": 0.9,}
+        # Defining tooltip
+        my_tooltip = folium.features.GeoJsonTooltip(fields=['from_id', variable],
+                                                    aliases = ['YKR ID:', "Travel time (min):"],
+                                                    labels=True,
+                                                    sticky=False)
+        # Creating the choropleth map
+        folium.features.GeoJson(data,  
+                                name='Grid',
+                                style_function=my_style,
+                                tooltip=my_tooltip                                             
+        ).add_to(m)
+        # Adding a popup for the destination square
+        dest_gjson = folium.GeoJson(dest, name='Destination square')
+        popup = folium.Popup('Destination square')
+        popup.add_to(dest_gjson)
+        dest_gjson.add_to(m)
+    # Adding the colormap
+    m.add_child(colorscale)
+    # Adding layer control
+    folium.LayerControl().add_to(m)
+    title_html = '''
+             <h3 align="center" style="font-size:16px"><b>{}</b></h3>
+             '''.format(credits) 
+    m.get_root().html.add_child(folium.Element(title_html))
+    # Creating a output path for the map with unique name
+    outfp = os.path.join(output_folder, f"{variable}_to_{YKR_ID}_map.html")
+    # Saving the map
+    m.save(outfp)
+
+def ComparisonTool(tm_comp: list, TJ_result, output_folder):
+    """
+    Compares two travel modes by subtracting the first travel mode by the latter one.
+
+            Parameters:
+                    tm_comp (list): A list of travel modes to be compared
+                    TJ_result (str): A list of filepaths of geopackage files
+                    output_folder (str): Name of the output folder
+
+            Returns:
+                    None
+    """
+    # Using assert to make sure input is ok
+    assert type(tm_comp) == list, "The travel modes for comparison has to be passed as a list!"
+    assert len(tm_comp) == 2, "Make sure there are only two travel modes to be compared!"
+    for tm in tm_comp:
+        assert tm in ["car", "pt", "bike", "walk"], "Allowed travel modes are: car, pt, bike, walk."
+    # Separating the travel modes
+    tm1 = tm_comp[0]
+    tm2 = tm_comp[1]
+    # Finding the right column names for tm1
+    if tm1 == "car" or tm1 == "pt":
+        tm1_t = f"{tm1}_r_t"
+        tm1_d = f"{tm1}_r_d"
+    elif tm1 == "bike":
+        tm1_t = f"{tm1}_s_t"
+        tm1_d = f"{tm1}_d"
+    else:
+        tm1_t = f"{tm1}_t"
+        tm1_d = f"{tm1}_d"
+    # Finding the right column names for tm2
+    if tm2 == "car" or tm2 == "pt":
+        tm2_t = f"{tm2}_r_t"
+        tm2_d = f"{tm2}_r_d"
+    elif tm2 == "bike":
+        tm2_t = f"{tm2}_s_t"
+        tm2_d = f"{tm2}_d"
+    else:
+        tm2_t = f"{tm2}_t"
+        tm2_d = f"{tm2}_d" 
+    # Creating column names
+    ct_t = f"{tm1[0]}_vs_{tm2[0]}_t"
+    ct_d = f"{tm1[0]}_vs_{tm2[0]}_d"
+    # Getting the files from TableJoiner
+    gpkg_fps = TJ_result
+    # For-looping the files
+    for fp in gpkg_fps:
+        # Getting the YKR ID number
+        name = fp[:-5]
+        YKR_ID = name[-7:]
+        # Reading the data
+        data = gpd.read_file(fp)
+        # Dealing with no data values
+        data = data.loc[data[tm1_t] > -1]
+        data = data.loc[data[tm1_d] > -1]
+        data = data.loc[data[tm2_t] > -1]
+        data = data.loc[data[tm2_d] > -1]
+        # Calculating the differences
+        data[ct_t] = data.apply(lambda x: x[tm1_t] - x[tm2_t], axis=1)
+        data[ct_d] = data.apply(lambda x: x[tm1_d] - x[tm2_d], axis=1)
+        # Creating a output path for the data with unique name
+        fname = f"Accessibility_{YKR_ID}_{tm1}_vs_{tm2}.gpkg"
+        output_fp = os.path.join(output_folder, fname)
+        # Saving the geopackage file to output folder
+        data.to_file(output_fp, driver="GPKG")
+
+def YKR_map():
+    """
+    Displays a map of YKR ID grid.
+    
+    """
+    # Reading the grid file
+    grid = gpd.read_file(GridFpFinder())
+    # Creating the map instance
+    m = folium.Map(location=[60.25, 24.8], zoom_start=10, control_scale=True)
+    # Creating the choropleth map
+    folium.features.GeoJson(grid,  
+                            name='Grid',
+                            style_function=lambda x: {'edgecolor':'black', 'fillColor': 'transparent', 'weight': 0.2},
+                            tooltip=folium.features.GeoJsonTooltip(fields=['YKR_ID'],
+                                                                    aliases = ['YKR ID:'],
+                                                                    labels=True,
+                                                                    sticky=False
+                                                                                )
+                           ).add_to(m)
+    # Adding layer control
+    folium.LayerControl().add_to(m)
+    display(m)
+
+def yn_loop(question: str, choices: list):
+    """
+    Asks for input until given a correct one and returns it.
+
+            Parameters:
+                    question (str): A defined question
+                    choices (list): List of choices to choose from
+
+            Returns:
+                    choice (str): The user's choice
+    """
+    yes_no = "Accepted answers are yes & no. To exit press enter."
+    choice = input(question)
+    while choice not in choices:
+        print(yes_no)
+        choice = input(question)
+    return choice
