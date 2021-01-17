@@ -29,6 +29,7 @@ AccessViz
 ### Structure of this repository:
 - ReadMe file
 - AccessViz.py module
+- AccessVizScript.py module
 - final-assignment-pjustus.ipynb 
 ### Input data:
 - TimeTravelMatrix files
