@@ -2,7 +2,7 @@
 
 import AccessViz as av
 
-def main():
+def AccessViz():
 
 """
     A tool for managing, analyzing and visualizing the Travel Time Matrix data set.
